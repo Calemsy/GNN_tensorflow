@@ -7,3 +7,5 @@ For more information, please refer to:
 > M. Zhang, Z. Cui, M. Neumann, and Y. Chen, An End-to-End Deep Learning Architecture for Graph Classification, Proc. AAAI Conference on Artificial Intelligence (AAAI-18).
 
 and the origal PyTorch implementation of DGCNN is [here](https://github.com/muhanzhang/pytorch_DGCNN)
+
+To be continued...
