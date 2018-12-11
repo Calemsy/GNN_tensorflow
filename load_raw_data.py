@@ -1,6 +1,7 @@
 import numpy as np
 import os.path
 import glob
+import scipy.io as scio
 
 
 def load_cni1():
@@ -31,7 +32,7 @@ def load_cni1():
     assert justify_count == graph_size
     assert graph_size == len(graphs) == len(labels) == len(vertex_tag)
     print("\tgraphs: ", len(graphs))
-    print("\tmax nodes: %d, \n\tmin nodes: %d, \n\taverage node %.2f." %
+    print("\tmax nodes: %d \n\tmin nodes: %d \n\taverage node %.2f" %
           (np.max(nodes_size_list), np.min(nodes_size_list), np.average(nodes_size_list)))
     print("\tvertex tag: ", set(sum(vertex_tag, [])))
     data = {"graphs": graphs,
@@ -72,7 +73,7 @@ def load_mutag():
 
     assert len(file_name_list) == len(nodes_size_list) == len(labels) == len(graphs)
     print("\tgraphs: ", len(graphs))
-    print("\tmax nodes: %d, \n\tmin nodes: %d, \n\taverage node %.2f." %
+    print("\tmax nodes: %d \n\tmin nodes: %d \n\taverage node %.2f" %
           (np.max(nodes_size_list), np.min(nodes_size_list), np.average(nodes_size_list)))
     print("\tvertex tag: ", set(sum(vertex_tag, [])))
     data = {"graphs": graphs,
@@ -83,6 +84,40 @@ def load_mutag():
             "dimension": None}
     return data
 
+
+def load_proteins():
+    print("load proteins...")
+    raw_data = scio.loadmat("./graph_data/proteins/proteins")
+    adjacent_matrix_id, tag_id, edges_id = 0, 1, 2
+    graph_data = raw_data["proteins"][0]
+    graphs, labels, nodes_size_list, vertex_tag = [], [], [], []
+    labels = raw_data["lproteins"].reshape(-1)
+    graphs_size = len(graph_data)
+    for graph_index in range(graphs_size):
+        tags = graph_data[graph_index][tag_id][0][0][0].reshape(-1).tolist()
+        nodes_size_list.append(len(tags))
+        vertex_tag.append(tags)
+        graph = []
+        adjacent_matrix = graph_data[graph_index][adjacent_matrix_id]
+        for start_index, neig_list in enumerate(adjacent_matrix):
+            for end_index, end in enumerate(neig_list[start_index:]):
+                if end == 1:
+                    graph.append([start_index + 1, start_index + end_index + 1])
+        graphs.append(graph)
+    labels = np.where(np.array(labels) == 1, 1, 0).tolist()
+
+    print("\tgraphs: ", len(graphs))
+    print("\tmax nodes: %d \n\tmin nodes: %d \n\taverage node %.2f" %
+          (np.max(nodes_size_list), np.min(nodes_size_list), np.average(nodes_size_list)))
+    print("\tvertex tag: ", set(sum(vertex_tag, [])))
+    data = {"graphs": graphs,
+            "labels": labels,
+            "nodes_size_list": nodes_size_list,
+            "vertex_tag": vertex_tag,
+            "index_from": 1,
+            "dimension": None}
+    return data
+
+
 if __name__ == "__main__":
-    load_mutag()
-    load_cni1()
+    pass
