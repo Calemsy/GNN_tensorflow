@@ -11,7 +11,7 @@ CONV1D_2_OUTPUT = 32
 CONV1D_1_FILTER_WIDTH = GRAPH_CONV_LAYER_CHANNEL * 3
 CONV1D_2_FILTER_WIDTH = 5
 DENSE_NODES = 128
-DROP_OUTPUT_KEEP_PROB = 0.5
+DROP_OUTPUT_RATE = 0.5
 LEARNING_RATE_BASE = 0.00004
 LEARNING_RATE_DECAY = 0.99
 
@@ -25,9 +25,6 @@ args = parser.parse_args()
 
 
 def create_input(data):
-    """
-    :return: 
-    """
     print("create input...")
     offset = 1 if data["index_from"] == 1 else 0
     graphs, nodes_size_list, labels = data["graphs"], data["nodes_size_list"], data["labels"]
@@ -134,22 +131,22 @@ def GNN(X_train, D_inverse_train, A_tilde_train, Y_train, nodes_size_list_train,
     graph_weight_4 = tf.Variable(tf.truncated_normal(shape=[GRAPH_CONV_LAYER_CHANNEL, 1], stddev=0.1, dtype=tf.float32))
 
     # GRAPH CONVOLUTION LAYER 1
-    gl_1_XxW = tf.matmul(X_pl, graph_weight_1)                  # shape=(node_size/None, 32)
-    gl_1_AxXxW = tf.matmul(A_tilde_pl, gl_1_XxW)                # shape=(node_size/None, 32)
-    Z_1 = tf.nn.tanh(tf.matmul(D_inverse_pl, gl_1_AxXxW))       # shape=(node_size/None, 32)
+    gl_1_XxW = tf.matmul(X_pl, graph_weight_1)
+    gl_1_AxXxW = tf.matmul(A_tilde_pl, gl_1_XxW)
+    Z_1 = tf.nn.tanh(tf.matmul(D_inverse_pl, gl_1_AxXxW))
     # GRAPH CONVOLUTION LAYER 2
-    gl_2_XxW = tf.matmul(Z_1, graph_weight_2)                   # shape=(node_size/None, 32)
-    gl_2_AxXxW = tf.matmul(A_tilde_pl, gl_2_XxW)                # shape=(node_size/None, 32)
-    Z_2 = tf.nn.tanh(tf.matmul(D_inverse_pl, gl_2_AxXxW))       # shape=(node_size/None, 32)
+    gl_2_XxW = tf.matmul(Z_1, graph_weight_2)
+    gl_2_AxXxW = tf.matmul(A_tilde_pl, gl_2_XxW)
+    Z_2 = tf.nn.tanh(tf.matmul(D_inverse_pl, gl_2_AxXxW))
     # GRAPH CONVOLUTION LAYER 3
-    gl_3_XxW = tf.matmul(Z_2, graph_weight_3)                   # shape=(node_size/None, 32)
-    gl_3_AxXxW = tf.matmul(A_tilde_pl, gl_3_XxW)                # shape=(node_size/None, 32)
-    Z_3 = tf.nn.tanh(tf.matmul(D_inverse_pl, gl_3_AxXxW))       # shape=(node_size/None, 32)
+    gl_3_XxW = tf.matmul(Z_2, graph_weight_3)
+    gl_3_AxXxW = tf.matmul(A_tilde_pl, gl_3_XxW)
+    Z_3 = tf.nn.tanh(tf.matmul(D_inverse_pl, gl_3_AxXxW))
     # GRAPH CONVOLUTION LAYER 4
-    gl_4_XxW = tf.matmul(Z_3, graph_weight_4)                   # shape=(node_size/None, 1)
-    gl_4_AxXxW = tf.matmul(A_tilde_pl, gl_4_XxW)                # shape=(node_size/None, 1)
-    Z_4 = tf.nn.tanh(tf.matmul(D_inverse_pl, gl_4_AxXxW))       # shape=(node_size/None, 1)
-    graph_conv_output = tf.concat([Z_1, Z_2, Z_3], axis=1)      # shape=(node_size/None, 32 + 32 + 32)
+    gl_4_XxW = tf.matmul(Z_3, graph_weight_4)
+    gl_4_AxXxW = tf.matmul(A_tilde_pl, gl_4_XxW)
+    Z_4 = tf.nn.tanh(tf.matmul(D_inverse_pl, gl_4_AxXxW))
+    graph_conv_output = tf.concat([Z_1, Z_2, Z_3], axis=1)  # shape=(node_size/None, 32+32+32)
 
     if debug:
         var_mean, var_variance, var_max, var_min = variable_summary(graph_weight_1)
@@ -188,7 +185,7 @@ def GNN(X_train, D_inverse_train, A_tilde_train, Y_train, nodes_size_list_train,
     bias_1 = tf.Variable(tf.zeros(shape=[DENSE_NODES]))
     dense_z = tf.nn.relu(tf.matmul(conv_output_flatten, weight_1) + bias_1)
     if is_train == 1:
-        dense_z = tf.layers.dropout(dense_z, DROP_OUTPUT_KEEP_PROB)
+        dense_z = tf.layers.dropout(dense_z, DROP_OUTPUT_RATE)
 
     weight_2 = tf.Variable(tf.truncated_normal(shape=[DENSE_NODES, 2]))
     bias_2 = tf.Variable(tf.zeros(shape=[2]))
@@ -204,10 +201,11 @@ def GNN(X_train, D_inverse_train, A_tilde_train, Y_train, nodes_size_list_train,
     #                                            train_data_size,
     #                                            LEARNING_RATE_DECAY,
     #                                            staircase=True)
-    train_op = tf.train.AdamOptimizer(0.00001).minimize(loss, global_step)
+    train_op = tf.train.AdamOptimizer(0.000001).minimize(loss, global_step)
     # mutag: 0.00005
     # cni1:  exponential learning base 0.00003
-    # proteins: 0.00003
+    # proteins: 0.000001
+    #           0.00003, maybe a small epoch or bigger drop out rate is better
 
     with tf.Session() as sess:
         print("\nstart training gnn.")
