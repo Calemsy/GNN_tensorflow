@@ -1,10 +1,8 @@
 import argparse
-import os.path
-import glob
 import numpy as np
 import time
-from termcolor import *
 import tensorflow as tf
+from load_raw_data import *
 
 
 GRAPH_CONV_LAYER_CHANNEL = 32
@@ -13,86 +11,72 @@ CONV1D_2_OUTPUT = 32
 CONV1D_1_FILTER_WIDTH = GRAPH_CONV_LAYER_CHANNEL * 3
 CONV1D_2_FILTER_WIDTH = 5
 DENSE_NODES = 128
-DROP_OUTPUT_KEEP_PROB = 0.5
+DROP_OUTPUT_KEEP_PROB = 0.7
+LEARNING_RATE_BASE = 0.00001
+LEARNING_RATE_DECAY = 0.99
 
 
 parser = argparse.ArgumentParser(description="GNN(graph neural network)-tensorflow")
 parser.add_argument("--data", type=str, help="name of data", default="mutag")
 parser.add_argument("-E", "--epoch", type=int, default=100, help="pass through all training set call a EPOCH")
 parser.add_argument("-r", "--learning_rate", type=float, default=0.0001, help="learning rate")
+parser.add_argument("-k", "--top_k", type=int, default=60, help="for sort pooling layer to cut nodes")
 args = parser.parse_args()
 
 
-def load_networks():
-    print("load data...")
-    file_list = []
-    file_glob_pattern = os.path.join("graph_data", args.data, "mutag*.graph")
-    file_list.extend(glob.glob(file_glob_pattern))
+def create_input(data):
+    """
+    :return: 
+    """
+    print("create input...")
+    offset = 1 if data["index_from"] == 1 else 0
+    graphs, nodes_size_list, labels = data["graphs"], data["nodes_size_list"], data["labels"]
+    top_k = int(np.percentile(nodes_size_list, args.top_k))
+    print("\t%s%% graphs have nodes less then %s." % (args.top_k, top_k))
 
-    edges_set, labels_set, nodes_size_list = {}, {}, {}
-    for file in file_list:
-        base_name = os.path.basename(file)
-        edges_set[base_name] = []
-        with open(file, "r") as f:
-            line, read = f.readline(), False
-            while line:
-                if line.startswith("#c - Class"):
-                    labels_set[base_name] = (int(f.readline().strip()))
-                    break
-                if read:
-                    edges_set[base_name].append([int(x) for x in line.strip().split(",")[:2]])
-                if line.startswith("#e - edge labels"):
-                    read = True
-                line = f.readline()
-        nodes_size_list[base_name] = max(max(np.array(edges_set[base_name])[:, 0]), max(np.array(edges_set[base_name])[:, 1]))
-
-    A, Y, count = [], [], 0
-    for key, value in edges_set.items():
-        A.append(np.zeros([nodes_size_list[key], nodes_size_list[key]], dtype=np.float32))
-        for edge in value:
-            A[count][edge[0] - 1][edge[1] - 1] = 1.
-        Y.append([labels_set[key]])
+    A_tilde, count = [], 0
+    for index, graph in enumerate(graphs):
+        A_tilde.append(np.zeros([nodes_size_list[index], nodes_size_list[index]], dtype=np.float32))
+        for edge in graph:
+            A_tilde[count][edge[0] - offset][edge[1] - offset] = 1.
+            A_tilde[count][edge[1] - offset][edge[0] - offset] = 1.
         count += 1
-    A, Y = np.array(A), np.array(Y)
-    Y = np.where(Y == -1, 0, 1)
+    Y = np.where(np.reshape(labels, [-1, 1]) == 1, 1, 0)
     print("\tpositive examples: %d, negative examples: %d." % (np.sum(Y == 0), np.sum(Y == 1)))
-    print("\tX.shape: %s, Y.shape: %s" % (A.shape, Y.shape))
-    # get A_tilde
-    for index, x in enumerate(A):
-        A[index] = x + np.eye(x.shape[0])
+    A_tilde = np.array(A_tilde)
+
+    # get A_title
+    for index, x in enumerate(A_tilde):
+        A_tilde[index] = x + np.eye(x.shape[0])
     # get D_inverse
     D_inverse = []
-    for x in A:
+    for x in A_tilde:
         D_inverse.append(np.linalg.inv(np.diag(np.sum(x, axis=1))))
-    nodes_list = [x for x in nodes_size_list.values()]
-    print("\tmax graph size: %d, min graph size: %d.", max(nodes_list), min(nodes_list))
-    return np.array(D_inverse), A, Y, nodes_list # A is A_tilde
-
-
-def create_attribution(attribute, dimension, nodes_size_list, A_title):
-    """
-    :param attribute: 'label' or 'attribute' or 'degree'
-    :param dimension: dimension of the initial attribute of node
-    :param graph_size_list: nodes of each graph in the graph data
-    :return: X
-    """
-    if dimension is None:
-        if attribute == "degree":
-            print("\tX: normalized node degree.")
-            degree_normalized = []
-            for graph in A_title:
-                degree_total = np.sum(graph, axis=1)
-                degree_normalized.append(np.divide(degree_total, np.sum(degree_total)).reshape(-1, 1))
-            return np.array(degree_normalized)
-        elif attribute == "label":
-            print("\tX: np.ones([node_size, 1]).")
-            return np.array([np.ones([x, 1]) for x in nodes_size_list])
-        elif attribute == "onehot":
-            print("\tX: np.eye().")
-            return np.array([np.eye(x) for x in nodes_size_list])
-    else:
-        # read attribute.
+    # get X
+    X, initial_feature_channels = [], 0
+    if data["dimension"]:
+        # read node attribute and set initial_feature_channels
         pass
+    else:
+        # no node attribute
+        if data["vertex_tag"] is not None:
+            vertex_tag = data["vertex_tag"]
+            initial_feature_channels = len(set(sum(vertex_tag, [])))
+            print("\tX: one-hot vertex tag, tag size %d." % (initial_feature_channels))
+            for tag in vertex_tag:
+                x = convert_to_one_hot(np.array(tag) - offset, initial_feature_channels)
+                X.append(x)
+        else:
+            print("\tX: normalized node degree.")
+            for graph in A_tilde:
+                degree_total = np.sum(graph, axis=1)
+                X.append(np.divide(degree_total, np.sum(degree_total)).reshape(-1, 1))
+            initial_feature_channels = 1
+    return np.array(D_inverse), A_tilde, Y, np.array(X), nodes_size_list, initial_feature_channels, top_k
+
+
+def convert_to_one_hot(y, C):
+    return np.eye(C)[y.reshape(-1)]
 
 
 def split_train_test(D_inverse, A_tilde, X, Y, nodes_size_list, rate):
@@ -114,9 +98,9 @@ def split_train_test(D_inverse, A_tilde, X, Y, nodes_size_list, rate):
     X_train, X_test = X[: training_set_size], X[training_set_size:]
     Y_train, Y_test = Y[: training_set_size], Y[training_set_size:]
     nodes_size_list_train, nodes_size_list_test = nodes_size_list[: training_set_size], nodes_size_list[training_set_size:]
-    print("\tabout train: positive examples(%d): %d, negative examples: %d."
+    print("\tabout train: positive examples(%d): %s, negative examples: %s."
           % (training_set_size, np.sum(Y_train == 1), np.sum(Y_train == 0)))
-    print("\tabout test: positive examples(%d): %d, negative examples: %d."
+    print("\tabout test: positive examples(%d): %s, negative examples: %s."
           % (test_set_size, np.sum(Y_test == 1), np.sum(Y_test == 0)))
     return D_inverse_train, D_inverse_test, A_tilde_train, A_tilde_test, X_train, X_test, Y_train, Y_test, \
            nodes_size_list_train, nodes_size_list_test
@@ -210,8 +194,13 @@ def GNN(X_train, D_inverse_train, A_tilde_train, Y_train, nodes_size_list_train,
     pre_y = tf.matmul(dense_z, weight_2) + bias_2
 
     loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=Y_pl, logits=pre_y))
-
-    train_op = tf.train.AdamOptimizer(0.0001).minimize(loss)
+    global_step = tf.Variable(0, trainable=False)
+    # learning_rate = tf.train.exponential_decay(LEARNING_RATE_BASE,
+    #                                            global_step,
+    #                                            4110,
+    #                                            LEARNING_RATE_DECAY,
+    #                                            staircase=True)
+    train_op = tf.train.AdamOptimizer(0.00005).minimize(loss)  # 0.00005 for mutag
 
     train_data_size = X_train.shape[0]
     test_data_size = X_test.shape[0]
@@ -230,7 +219,7 @@ def GNN(X_train, D_inverse_train, A_tilde_train, Y_train, nodes_size_list_train,
                          node_size_pl: nodes_size_list_train[batch_index],
                          is_train: 1
                          }
-            loss_value, _ = sess.run([loss, train_op], feed_dict=feed_dict)
+            loss_value, _, _ = sess.run([loss, train_op, global_step], feed_dict=feed_dict)
             if step % 1000 == 0:
                 train_acc = 0
                 for i in range(train_data_size):
@@ -259,15 +248,13 @@ def GNN(X_train, D_inverse_train, A_tilde_train, Y_train, nodes_size_list_train,
                     if np.argmax(pre_y_value, 1) == Y_test[i]:
                         test_acc += 1
                 test_acc = test_acc / test_data_size
-
                 # mean_value, var_value, max_value, min_value = sess.run([var_mean,
                 #                                                         var_variance,
                 #                                                         var_max,
                 #                                                         var_min],
                 #                                                        feed_dict=feed_dict)
-                # print("debug: mean: %f, variance: %f, max: %f, min: %f." %
+                # print("\t\tdebug: mean: %f, variance: %f, max: %f, min: %f." %
                 #       (mean_value, var_value, max_value, min_value))
-
                 print("After %5s step, the loss is %f, training acc %f, test acc %f."
                       % (step, loss_value, train_acc, test_acc))
         end_t = time.time()
@@ -275,11 +262,13 @@ def GNN(X_train, D_inverse_train, A_tilde_train, Y_train, nodes_size_list_train,
 
 
 if __name__ == "__main__":
-    D_inverse, A_tilde, Y, nodes_size_list, = load_networks()
-    X = create_attribution("degree", None, nodes_size_list, A_tilde)
+
+    # data = load_mutag()
+    data = load_cni1()
+    D_inverse, A_tilde, Y, X, nodes_size_list, initial_feature_dimension, top_k = create_input(data)
+
     D_inverse_train, D_inverse_test, A_tilde_train, A_tilde_test, X_train, X_test, Y_train, Y_test, \
     nodes_size_list_train, nodes_size_list_test = split_train_test(D_inverse, A_tilde, X, Y, nodes_size_list, 0.1)
-    initial_feature_dimension = 1
-    GNN(X_train, D_inverse_train, A_tilde_train, Y_train, nodes_size_list_train, 25, initial_feature_dimension,
+    GNN(X_train, D_inverse_train, A_tilde_train, Y_train, nodes_size_list_train, top_k, initial_feature_dimension,
         X_test, D_inverse_test, A_tilde_test, Y_test, nodes_size_list_test)
 
