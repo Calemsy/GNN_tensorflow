@@ -11,13 +11,13 @@ CONV1D_2_OUTPUT = 32
 CONV1D_1_FILTER_WIDTH = GRAPH_CONV_LAYER_CHANNEL * 3
 CONV1D_2_FILTER_WIDTH = 5
 DENSE_NODES = 128
-DROP_OUTPUT_KEEP_PROB = 0.7
-LEARNING_RATE_BASE = 0.00001
+DROP_OUTPUT_KEEP_PROB = 0.5
+LEARNING_RATE_BASE = 0.00004
 LEARNING_RATE_DECAY = 0.99
 
 
 parser = argparse.ArgumentParser(description="GNN(graph neural network)-tensorflow")
-parser.add_argument("--data", type=str, help="name of data", default="mutag")
+parser.add_argument("-d", "--data", type=str, help="name of data", default="mutag")
 parser.add_argument("-E", "--epoch", type=int, default=100, help="pass through all training set call a EPOCH")
 parser.add_argument("-r", "--learning_rate", type=float, default=0.0001, help="learning rate")
 parser.add_argument("-k", "--top_k", type=int, default=60, help="for sort pooling layer to cut nodes")
@@ -79,7 +79,7 @@ def convert_to_one_hot(y, C):
     return np.eye(C)[y.reshape(-1)]
 
 
-def split_train_test(D_inverse, A_tilde, X, Y, nodes_size_list, rate):
+def split_train_test(D_inverse, A_tilde, X, Y, nodes_size_list, rate=0.1):
     print("split training and test data...")
     state = np.random.get_state()
     np.random.shuffle(D_inverse)
@@ -115,7 +115,7 @@ def variable_summary(var):
 
 
 def GNN(X_train, D_inverse_train, A_tilde_train, Y_train, nodes_size_list_train, top_k, initial_channels,
-        X_test, D_inverse_test, A_tilde_test, Y_test, nodes_size_list_test):
+        X_test, D_inverse_test, A_tilde_test, Y_test, nodes_size_list_test, debug=False):
     # placeholder
     D_inverse_pl = tf.placeholder(dtype=tf.float32, shape=[None, None])
     A_tilde_pl = tf.placeholder(dtype=tf.float32, shape=[None, None])
@@ -151,11 +151,11 @@ def GNN(X_train, D_inverse_train, A_tilde_train, Y_train, nodes_size_list_train,
     Z_4 = tf.nn.tanh(tf.matmul(D_inverse_pl, gl_4_AxXxW))       # shape=(node_size/None, 1)
     graph_conv_output = tf.concat([Z_1, Z_2, Z_3], axis=1)      # shape=(node_size/None, 32 + 32 + 32)
 
-    var_mean, var_variance, var_max, var_min = variable_summary(graph_weight_1)
+    if debug:
+        var_mean, var_variance, var_max, var_min = variable_summary(graph_weight_1)
 
     # SORT POOLING LAYER
     graph_conv_output_stored = tf.gather(graph_conv_output, tf.nn.top_k(Z_4[:, 0], node_size_pl).indices)
-
     # the unifying is done by deleting the last n-k rows if n > k;
     # or adding k-n zero rows if n < k.
     graph_conv_output_top_k = tf.cond(tf.less(node_size_pl, top_k),
@@ -165,21 +165,22 @@ def GNN(X_train, D_inverse_train, A_tilde_train, Y_train, nodes_size_list_train,
                                                                          shape=[top_k-node_size_pl,
                                                                                 GRAPH_CONV_LAYER_CHANNEL*3])]),
                                       lambda: tf.slice(graph_conv_output_stored, begin=[0, 0], size=[top_k, -1]))
-    # assert graph_conv_output_top_k.shape == [top_k, 32*3]
 
+    # FLATTEN LAYER
     graph_conv_output_flatten = tf.reshape(graph_conv_output_top_k, shape=[1, GRAPH_CONV_LAYER_CHANNEL*3*top_k, 1])
     assert graph_conv_output_flatten.shape == [1, GRAPH_CONV_LAYER_CHANNEL*3*top_k, 1]
 
-    # 1-D CONVOLUTION LAYER: (filter_width, in_channel, out_channel)
+    # 1-D CONVOLUTION LAYER 1:
+    # kernel = (filter_width, in_channel, out_channel)
     conv1d_kernel_1 = tf.Variable(tf.truncated_normal(shape=[CONV1D_1_FILTER_WIDTH, 1, CONV1D_1_OUTPUT],
                                                       stddev=0.1, dtype=tf.float32))
     conv_1d_a = tf.nn.conv1d(graph_conv_output_flatten, conv1d_kernel_1, stride=CONV1D_1_FILTER_WIDTH, padding="VALID")
     assert conv_1d_a.shape == [1, top_k, CONV1D_1_OUTPUT]
+    # 1-D CONVOLUTION LAYER 2:
     conv1d_kernel_2 = tf.Variable(tf.truncated_normal(shape=[CONV1D_2_FILTER_WIDTH, CONV1D_1_OUTPUT, CONV1D_2_OUTPUT],
                                                       stddev=0.1, dtype=tf.float32))
     conv_1d_b = tf.nn.conv1d(conv_1d_a, conv1d_kernel_2, stride=1, padding="VALID")
     assert conv_1d_b.shape == [1, top_k - CONV1D_2_FILTER_WIDTH + 1, CONV1D_2_OUTPUT]
-
     conv_output_flatten = tf.layers.flatten(conv_1d_b)
 
     # DENSE LAYER
@@ -195,15 +196,18 @@ def GNN(X_train, D_inverse_train, A_tilde_train, Y_train, nodes_size_list_train,
 
     loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=Y_pl, logits=pre_y))
     global_step = tf.Variable(0, trainable=False)
+
+    train_data_size, test_data_size = X_train.shape[0], X_test.shape[0]
+
     # learning_rate = tf.train.exponential_decay(LEARNING_RATE_BASE,
     #                                            global_step,
-    #                                            4110,
+    #                                            train_data_size,
     #                                            LEARNING_RATE_DECAY,
     #                                            staircase=True)
-    train_op = tf.train.AdamOptimizer(0.00005).minimize(loss)  # 0.00005 for mutag
-
-    train_data_size = X_train.shape[0]
-    test_data_size = X_test.shape[0]
+    train_op = tf.train.AdamOptimizer(0.00001).minimize(loss, global_step)
+    # mutag: 0.00005
+    # cni1:  exponential learning base 0.00003
+    # proteins: 0.00003
 
     with tf.Session() as sess:
         print("\nstart training gnn.")
@@ -220,7 +224,7 @@ def GNN(X_train, D_inverse_train, A_tilde_train, Y_train, nodes_size_list_train,
                          is_train: 1
                          }
             loss_value, _, _ = sess.run([loss, train_op, global_step], feed_dict=feed_dict)
-            if step % 1000 == 0:
+            if step % (train_data_size * 2) == 0:
                 train_acc = 0
                 for i in range(train_data_size):
                     feed_dict = {D_inverse_pl: D_inverse_train[i],
@@ -248,13 +252,14 @@ def GNN(X_train, D_inverse_train, A_tilde_train, Y_train, nodes_size_list_train,
                     if np.argmax(pre_y_value, 1) == Y_test[i]:
                         test_acc += 1
                 test_acc = test_acc / test_data_size
-                # mean_value, var_value, max_value, min_value = sess.run([var_mean,
-                #                                                         var_variance,
-                #                                                         var_max,
-                #                                                         var_min],
-                #                                                        feed_dict=feed_dict)
-                # print("\t\tdebug: mean: %f, variance: %f, max: %f, min: %f." %
-                #       (mean_value, var_value, max_value, min_value))
+                if debug:
+                    mean_value, var_value, max_value, min_value = sess.run([var_mean,
+                                                                            var_variance,
+                                                                            var_max,
+                                                                            var_min],
+                                                                           feed_dict=feed_dict)
+                    print("\t\tdebug: mean: %f, variance: %f, max: %f, min: %f." %
+                          (mean_value, var_value, max_value, min_value))
                 print("After %5s step, the loss is %f, training acc %f, test acc %f."
                       % (step, loss_value, train_acc, test_acc))
         end_t = time.time()
@@ -262,13 +267,15 @@ def GNN(X_train, D_inverse_train, A_tilde_train, Y_train, nodes_size_list_train,
 
 
 if __name__ == "__main__":
-
-    # data = load_mutag()
-    data = load_cni1()
+    if args.data == "mutag":
+        data = load_mutag()
+    elif args.data == "cni1":
+        data = load_cni1()
+    elif args.data == "proteins":
+        data = load_proteins()
     D_inverse, A_tilde, Y, X, nodes_size_list, initial_feature_dimension, top_k = create_input(data)
-
     D_inverse_train, D_inverse_test, A_tilde_train, A_tilde_test, X_train, X_test, Y_train, Y_test, \
-    nodes_size_list_train, nodes_size_list_test = split_train_test(D_inverse, A_tilde, X, Y, nodes_size_list, 0.1)
+    nodes_size_list_train, nodes_size_list_test = split_train_test(D_inverse, A_tilde, X, Y, nodes_size_list)
     GNN(X_train, D_inverse_train, A_tilde_train, Y_train, nodes_size_list_train, top_k, initial_feature_dimension,
         X_test, D_inverse_test, A_tilde_test, Y_test, nodes_size_list_test)
 
