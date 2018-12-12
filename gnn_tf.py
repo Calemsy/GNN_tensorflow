@@ -129,19 +129,16 @@ def GNN(X_train, D_inverse_train, A_tilde_train, Y_train, nodes_size_list_train,
     graph_weight_3 = tf.Variable(tf.truncated_normal(shape=[GRAPH_CONV_LAYER_CHANNEL, GRAPH_CONV_LAYER_CHANNEL], stddev=0.1, dtype=tf.float32))
     graph_weight_4 = tf.Variable(tf.truncated_normal(shape=[GRAPH_CONV_LAYER_CHANNEL, 1], stddev=0.1, dtype=tf.float32))
 
-    # GRAPH CONVOLUTION LAYER 1
+    # GRAPH CONVOLUTION LAYER
     gl_1_XxW = tf.matmul(X_pl, graph_weight_1)
     gl_1_AxXxW = tf.matmul(A_tilde_pl, gl_1_XxW)
     Z_1 = tf.nn.tanh(tf.matmul(D_inverse_pl, gl_1_AxXxW))
-    # GRAPH CONVOLUTION LAYER 2
     gl_2_XxW = tf.matmul(Z_1, graph_weight_2)
     gl_2_AxXxW = tf.matmul(A_tilde_pl, gl_2_XxW)
     Z_2 = tf.nn.tanh(tf.matmul(D_inverse_pl, gl_2_AxXxW))
-    # GRAPH CONVOLUTION LAYER 3
     gl_3_XxW = tf.matmul(Z_2, graph_weight_3)
     gl_3_AxXxW = tf.matmul(A_tilde_pl, gl_3_XxW)
     Z_3 = tf.nn.tanh(tf.matmul(D_inverse_pl, gl_3_AxXxW))
-    # GRAPH CONVOLUTION LAYER 4
     gl_4_XxW = tf.matmul(Z_3, graph_weight_4)
     gl_4_AxXxW = tf.matmul(A_tilde_pl, gl_4_XxW)
     Z_4 = tf.nn.tanh(tf.matmul(D_inverse_pl, gl_4_AxXxW))
@@ -201,7 +198,7 @@ def GNN(X_train, D_inverse_train, A_tilde_train, Y_train, nodes_size_list_train,
     train_op = tf.train.AdamOptimizer(args.learning_rate).minimize(loss, global_step)
 
     with tf.Session() as sess:
-        print("\nstart training gnn.")
+        print("start training gnn.")
         print("\tlearning rate: %f. epoch: %d." % (args.learning_rate, args.epoch))
         start_t = time.time()
         sess.run(tf.global_variables_initializer())
@@ -245,13 +242,12 @@ def GNN(X_train, D_inverse_train, A_tilde_train, Y_train, nodes_size_list_train,
     return test_acc
 
 
-if __name__ == "__main__":
+def main():
     if args.data == "mutag":
         args.learning_rate = 0.00005
         data = load_mutag()
     elif args.data == "cni1":
-        args.learning_rate = 0.00003
-        # maybe exponential moving average learning rate is better
+        args.learning_rate = 0.00003  # maybe exponential moving average learning rate is better
         data = load_cni1()
     elif args.data == "proteins":
         args.learning_rate = 0.000001
@@ -259,6 +255,10 @@ if __name__ == "__main__":
     D_inverse, A_tilde, Y, X, nodes_size_list, initial_feature_dimension, top_k = create_input(data)
     D_inverse_train, D_inverse_test, A_tilde_train, A_tilde_test, X_train, X_test, Y_train, Y_test, \
     nodes_size_list_train, nodes_size_list_test = split_train_test(D_inverse, A_tilde, X, Y, nodes_size_list)
-    GNN(X_train, D_inverse_train, A_tilde_train, Y_train, nodes_size_list_train, top_k, initial_feature_dimension,
+    tc = GNN(X_train, D_inverse_train, A_tilde_train, Y_train, nodes_size_list_train, top_k, initial_feature_dimension,
         X_test, D_inverse_test, A_tilde_test, Y_test, nodes_size_list_test)
+    return tc
 
+
+if __name__ == "__main__":
+    main()
