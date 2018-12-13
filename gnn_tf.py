@@ -57,6 +57,8 @@ def create_input(data):
         pass
     else:
         # no node attribute
+        def convert_to_one_hot(y, C):
+            return np.eye(C)[y.reshape(-1)]
         if data["vertex_tag"] is not None:
             vertex_tag = data["vertex_tag"]
             initial_feature_channels = len(set(sum(vertex_tag, [])))
@@ -71,10 +73,6 @@ def create_input(data):
                 X.append(np.divide(degree_total, np.sum(degree_total)).reshape(-1, 1))
             initial_feature_channels = 1
     return np.array(D_inverse), A_tilde, Y, np.array(X), nodes_size_list, initial_feature_channels, top_k
-
-
-def convert_to_one_hot(y, C):
-    return np.eye(C)[y.reshape(-1)]
 
 
 def split_train_test(D_inverse, A_tilde, X, Y, nodes_size_list, rate=0.1):
