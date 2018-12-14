@@ -52,26 +52,26 @@ def create_input(data):
         D_inverse.append(np.linalg.inv(np.diag(np.sum(x, axis=1))))
     # get X
     X, initial_feature_channels = [], 0
-    if data["dimension"]:
-        # read node attribute and set initial_feature_channels
-        pass
+    def convert_to_one_hot(y, C):
+        return np.eye(C)[y.reshape(-1)]
+    if data["vertex_tag"]:
+        vertex_tag = data["vertex_tag"]
+        initial_feature_channels = len(set(sum(vertex_tag, [])))
+        print("\tX: one-hot vertex tag, tag size %d." % (initial_feature_channels))
+        for tag in vertex_tag:
+            x = convert_to_one_hot(np.array(tag) - offset, initial_feature_channels)
+            X.append(x)
     else:
-        # no node attribute
-        def convert_to_one_hot(y, C):
-            return np.eye(C)[y.reshape(-1)]
-        if data["vertex_tag"] is not None:
-            vertex_tag = data["vertex_tag"]
-            initial_feature_channels = len(set(sum(vertex_tag, [])))
-            print("\tX: one-hot vertex tag, tag size %d." % (initial_feature_channels))
-            for tag in vertex_tag:
-                x = convert_to_one_hot(np.array(tag) - offset, initial_feature_channels)
-                X.append(x)
-        else:
-            print("\tX: normalized node degree.")
-            for graph in A_tilde:
-                degree_total = np.sum(graph, axis=1)
-                X.append(np.divide(degree_total, np.sum(degree_total)).reshape(-1, 1))
-            initial_feature_channels = 1
+        print("\tX: normalized node degree.")
+        for graph in A_tilde:
+            degree_total = np.sum(graph, axis=1)
+            X.append(np.divide(degree_total, np.sum(degree_total)).reshape(-1, 1))
+        initial_feature_channels = 1
+    if data["feature"]:
+        feature = data["feature"]
+        X = np.concatenate([X, feature], axis=1)
+        initial_feature_channels += len(feature[0])
+
     return np.array(D_inverse), A_tilde, Y, np.array(X), nodes_size_list, initial_feature_channels, top_k
 
 

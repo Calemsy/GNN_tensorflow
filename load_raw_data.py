@@ -40,7 +40,8 @@ def load_cni1():
             "nodes_size_list": nodes_size_list,
             "vertex_tag": vertex_tag,
             "index_from": 0,
-            "dimension": None}
+            "feature": None,
+            }
     return data
 
 
@@ -81,7 +82,8 @@ def load_mutag():
             "nodes_size_list": nodes_size_list,
             "vertex_tag": vertex_tag,
             "index_from": 1,
-            "dimension": None}
+            "feature": None,
+            }
     return data
 
 
@@ -115,7 +117,8 @@ def load_proteins():
             "nodes_size_list": nodes_size_list,
             "vertex_tag": vertex_tag,
             "index_from": 1,
-            "dimension": None}
+            "feature": None,
+            }
     return data
 
 
