@@ -2,6 +2,7 @@ import numpy as np
 import os.path
 import glob
 import scipy.io as scio
+from operator import itemgetter
 
 
 def load_cni1():
@@ -34,7 +35,7 @@ def load_cni1():
     print("\tgraphs: ", len(graphs))
     print("\tmax nodes: %d \n\tmin nodes: %d \n\taverage node %.2f" %
           (np.max(nodes_size_list), np.min(nodes_size_list), np.average(nodes_size_list)))
-    print("\tvertex tag: ", set(sum(vertex_tag, [])))
+    print("\tvertex tag: ", len(set(sum(vertex_tag, []))))
     data = {"graphs": graphs,
             "labels": labels,
             "nodes_size_list": nodes_size_list,
@@ -76,7 +77,7 @@ def load_mutag():
     print("\tgraphs: ", len(graphs))
     print("\tmax nodes: %d \n\tmin nodes: %d \n\taverage node %.2f" %
           (np.max(nodes_size_list), np.min(nodes_size_list), np.average(nodes_size_list)))
-    print("\tvertex tag: ", set(sum(vertex_tag, [])))
+    print("\tvertex tag: ", len(set(sum(vertex_tag, []))))
     data = {"graphs": graphs,
             "labels": labels,
             "nodes_size_list": nodes_size_list,
@@ -111,7 +112,7 @@ def load_proteins():
     print("\tgraphs: ", len(graphs))
     print("\tmax nodes: %d \n\tmin nodes: %d \n\taverage node %.2f" %
           (np.max(nodes_size_list), np.min(nodes_size_list), np.average(nodes_size_list)))
-    print("\tvertex tag: ", set(sum(vertex_tag, [])))
+    print("\tvertex tag: ", len(set(sum(vertex_tag, []))))
     data = {"graphs": graphs,
             "labels": labels,
             "nodes_size_list": nodes_size_list,
@@ -122,5 +123,46 @@ def load_proteins():
     return data
 
 
+def load_dd():
+    print("load dd...")
+    raw_data = scio.loadmat("./graph_data/dd/DD.mat")
+    adjacent_matrix_id, tag_id, edges_id = 0, 1, 2
+    graph_data = raw_data["DD"][0]
+    graphs, labels, nodes_size_list, vertex_tag = [], [], [], []
+    labels = raw_data["ldd"].reshape(-1)
+    graphs_size = len(graph_data)
+    for graph_index in range(graphs_size):
+        tags = graph_data[graph_index][tag_id][0][0][0].reshape(-1).tolist()
+        nodes_size_list.append(len(tags))
+        vertex_tag.append(tags)
+        graph = []
+        adjacent_matrix = graph_data[graph_index][adjacent_matrix_id]
+        for start_index, neig_list in enumerate(adjacent_matrix):
+            for end_index, end in enumerate(neig_list[start_index:]):
+                if end == 1:
+                    graph.append([start_index + 1, start_index + end_index + 1])
+        graphs.append(graph)
+    labels = np.where(np.array(labels) == 1, 1, 0).tolist()
+
+    print("\tgraphs: ", len(graphs))
+    print("\tmax nodes: %d \n\tmin nodes: %d \n\taverage node %.2f" %
+          (np.max(nodes_size_list), np.min(nodes_size_list), np.average(nodes_size_list)))
+
+    # cause the tags of dd is not serial, so need a map for R->N
+    vertex_set = list(set(sum(vertex_tag, [])))
+    print("\tvertex tag: ", len(vertex_set))
+    vertex_map = dict([(x, vertex_set.index(x)) for x in vertex_set])
+    for index, graph_tag in enumerate(vertex_tag):
+        vertex_tag[index] = list(itemgetter(*graph_tag)(vertex_map))
+    data = {"graphs": graphs,
+            "labels": labels,
+            "nodes_size_list": nodes_size_list,
+            "vertex_tag": vertex_tag,
+            "index_from": 1,
+            "feature": None,
+            }
+
+    return data
+
 if __name__ == "__main__":
-    pass
+    load_dd()

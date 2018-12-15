@@ -110,8 +110,9 @@ def variable_summary(var):
     return var_mean, var_variance, var_max, var_min
 
 
-def GNN(X_train, D_inverse_train, A_tilde_train, Y_train, nodes_size_list_train, top_k, initial_channels,
-        X_test, D_inverse_test, A_tilde_test, Y_test, nodes_size_list_test, debug=False):
+def GNN(X_train, D_inverse_train, A_tilde_train, Y_train, nodes_size_list_train,
+        X_test, D_inverse_test, A_tilde_test, Y_test, nodes_size_list_test,
+        top_k, initial_channels, debug=False):
 
     # placeholder
     D_inverse_pl = tf.placeholder(dtype=tf.float32, shape=[None, None])
@@ -250,11 +251,14 @@ def main():
     elif args.data == "proteins":
         args.learning_rate = 0.000001
         data = load_proteins()
+    elif args.data == "dd":
+        args.learning_rate = 0.000001
+        data = load_dd()
     D_inverse, A_tilde, Y, X, nodes_size_list, initial_feature_dimension, top_k = create_input(data)
     D_inverse_train, D_inverse_test, A_tilde_train, A_tilde_test, X_train, X_test, Y_train, Y_test, \
     nodes_size_list_train, nodes_size_list_test = split_train_test(D_inverse, A_tilde, X, Y, nodes_size_list)
-    tc = GNN(X_train, D_inverse_train, A_tilde_train, Y_train, nodes_size_list_train, top_k, initial_feature_dimension,
-        X_test, D_inverse_test, A_tilde_test, Y_test, nodes_size_list_test)
+    tc = GNN(X_train, D_inverse_train, A_tilde_train, Y_train, nodes_size_list_train,
+        X_test, D_inverse_test, A_tilde_test, Y_test, nodes_size_list_test, top_k, initial_feature_dimension)
     return tc
 
 

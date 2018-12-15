@@ -2,7 +2,7 @@ import gnn_tf
 import os.path
 import numpy as np
 
-data_set_name = ["mutag", "proteins", "cni1"]
+data_set_name = ["mutag", "proteins", "cni1", "dd"]
 performance = {}
 for name_file in data_set_name:
     gnn_tf.args.data = name_file
