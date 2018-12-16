@@ -3,6 +3,7 @@ import tensorflow as tf
 from load_raw_data import *
 from tqdm import tqdm
 
+
 GRAPH_CONV_LAYER_CHANNEL = 32
 CONV1D_1_OUTPUT = 16
 CONV1D_2_OUTPUT = 32
@@ -12,6 +13,8 @@ DENSE_NODES = 128
 DROP_OUTPUT_RATE = 0.5
 LEARNING_RATE_BASE = 0.00004
 LEARNING_RATE_DECAY = 0.99
+MODEL_SAVE_PATH = "./model"
+MODEL_SAVE_NAME = "gnn_model"
 
 
 def create_input(data):
@@ -92,7 +95,7 @@ def split_train_test(D_inverse, A_tilde, X, Y, nodes_size_list, rate=0.1):
 
 def train(X_train, D_inverse_train, A_tilde_train, Y_train, nodes_size_list_train,
         X_test, D_inverse_test, A_tilde_test, Y_test, nodes_size_list_test,
-        top_k, initial_channels, learning_rate=0.00001, epoch=100, debug=False):
+        top_k, initial_channels, learning_rate=0.00001, epoch=100, data_name="mutag", debug=False):
 
     # placeholder
     D_inverse_pl = tf.placeholder(dtype=tf.float32, shape=[None, None])
@@ -180,6 +183,7 @@ def train(X_train, D_inverse_train, A_tilde_train, Y_train, nodes_size_list_trai
 
     # learning_rate = tf.train.exponential_decay(LEARNING_RATE_BASE, global_step, train_data_size, LEARNING_RATE_DECAY, staircase=True)
     train_op = tf.train.AdamOptimizer(learning_rate).minimize(loss, global_step)
+    # saver = tf.train.Saver()
 
     with tf.Session() as sess:
         print("start training gnn.")
@@ -208,11 +212,12 @@ def train(X_train, D_inverse_train, A_tilde_train, Y_train, nodes_size_list_trai
                     train_acc += 1
             train_acc = train_acc / train_data_size
 
-            test_acc = 0
+            test_acc, prediction = 0, []
             for i in range(test_data_size):
                 feed_dict = {D_inverse_pl: D_inverse_test[i], A_tilde_pl: A_tilde_test[i],
                              X_pl: X_test[i], Y_pl: Y_test[i], node_size_pl: nodes_size_list_test[i], is_train: 0}
                 pre_y_value = sess.run(pre_y, feed_dict=feed_dict)
+                prediction.append(np.argmax(pre_y_value, 1))
                 if np.argmax(pre_y_value, 1) == Y_test[i]:
                     test_acc += 1
             test_acc = test_acc / test_data_size
@@ -221,6 +226,7 @@ def train(X_train, D_inverse_train, A_tilde_train, Y_train, nodes_size_list_trai
                 print("\t\tdebug: mean: %f, variance: %f, max: %f, min: %f." %
                       (mean_value, var_value, max_value, min_value))
             print("After %5s epoch, the loss is %f, training acc %f, test acc %f." % (epoch, loss_value, train_acc, test_acc))
+            # saver.save(sess, os.path.join(MODEL_SAVE_PATH, data_name, MODEL_SAVE_NAME), global_step)
         end_t = time.time()
         print("time consumption: ", end_t - start_t)
-    return test_acc
+    return test_acc, prediction
