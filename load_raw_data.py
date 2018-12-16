@@ -3,6 +3,7 @@ import os.path
 import glob
 import scipy.io as scio
 from operator import itemgetter
+import pickle
 
 
 def load_cni1():
@@ -10,7 +11,7 @@ def load_cni1():
     graph_size = 0
     graphs, labels, nodes_size_list, vertex_tag = [], [], [], []
     justify_count = 0
-    with open("./graph_data/nci1/nci1.txt", "r") as f:
+    with open("./raw_data/nci1/nci1.txt", "r") as f:
         line = f.readline()
         while line:
             line = list(map(int, line.strip().split()))
@@ -43,13 +44,14 @@ def load_cni1():
             "index_from": 0,
             "feature": None,
             }
-    return data
+    with open("./data/cni1.txt", "wb") as f_out:
+        pickle.dump(data, f_out)
 
 
 def load_mutag():
     print("load mutag...")
     file_list = []
-    file_glob_pattern = os.path.join("graph_data", "mutag", "mutag*.graph")
+    file_glob_pattern = os.path.join("raw_data", "mutag", "mutag*.graph")
     file_list.extend(glob.glob(file_glob_pattern))
 
     graphs, labels, nodes_size_list, vertex_tag, file_name_list = [], [], [], [], []
@@ -85,12 +87,13 @@ def load_mutag():
             "index_from": 1,
             "feature": None,
             }
-    return data
+    with open("./data/mutag.txt", "wb") as f_out:
+        pickle.dump(data, f_out)
 
 
 def load_proteins():
     print("load proteins...")
-    raw_data = scio.loadmat("./graph_data/proteins/proteins")
+    raw_data = scio.loadmat("./raw_data/proteins/proteins")
     adjacent_matrix_id, tag_id, edges_id = 0, 1, 2
     graph_data = raw_data["proteins"][0]
     graphs, labels, nodes_size_list, vertex_tag = [], [], [], []
@@ -120,12 +123,13 @@ def load_proteins():
             "index_from": 1,
             "feature": None,
             }
-    return data
+    with open("./data/proteins.txt", "wb") as f_out:
+        pickle.dump(data, f_out)
 
 
 def load_dd():
     print("load dd...")
-    raw_data = scio.loadmat("./graph_data/dd/DD.mat")
+    raw_data = scio.loadmat("./raw_data/dd/DD.mat")
     adjacent_matrix_id, tag_id, edges_id = 0, 1, 2
     graph_data = raw_data["DD"][0]
     graphs, labels, nodes_size_list, vertex_tag = [], [], [], []
@@ -161,8 +165,11 @@ def load_dd():
             "index_from": 1,
             "feature": None,
             }
-
-    return data
+    with open("./data/dd.txt", "wb") as f_out:
+        pickle.dump(data, f_out)
 
 if __name__ == "__main__":
+    load_cni1()
+    load_mutag()
+    load_proteins()
     load_dd()
