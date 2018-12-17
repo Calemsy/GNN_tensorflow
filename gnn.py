@@ -57,13 +57,15 @@ def create_input(data):
             degree_total = np.sum(graph, axis=1)
             X.append(np.divide(degree_total, np.sum(degree_total)).reshape(-1, 1))
         initial_feature_channels = 1
-    if data["feature"]:
+    X = np.array(X)
+    if data["feature"] is not None:
         print("embedding or explicit feature.")
         feature = data["feature"]
-        X = np.concatenate([X, feature], axis=1)
-        initial_feature_channels += len(feature[0])
-
-    return np.array(D_inverse), A_tilde, Y, np.array(X), nodes_size_list, initial_feature_channels
+        for i in range(len(X)):
+            X[i] = np.concatenate([X[i], feature[i]], axis=1)
+        initial_feature_channels = len(X[0][0])
+    print("initial feature channels: ", initial_feature_channels)
+    return np.array(D_inverse), A_tilde, Y, X, nodes_size_list, initial_feature_channels
 
 
 def split_train_test(D_inverse, A_tilde, X, Y, nodes_size_list, rate=0.1):
