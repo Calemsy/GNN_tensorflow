@@ -177,6 +177,7 @@ def train(X_train, D_inverse_train, A_tilde_train, Y_train, nodes_size_list_trai
     weight_2 = tf.Variable(tf.truncated_normal(shape=[DENSE_NODES, 2]))
     bias_2 = tf.Variable(tf.zeros(shape=[2]))
     pre_y = tf.matmul(dense_z, weight_2) + bias_2
+    pos_score = tf.nn.softmax(pre_y)
 
     loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=Y_pl, logits=pre_y))
     global_step = tf.Variable(0, trainable=False)
@@ -214,12 +215,13 @@ def train(X_train, D_inverse_train, A_tilde_train, Y_train, nodes_size_list_trai
                     train_acc += 1
             train_acc = train_acc / train_data_size
 
-            test_acc, prediction = 0, []
+            test_acc, prediction, scores = 0, [], []
             for i in range(test_data_size):
                 feed_dict = {D_inverse_pl: D_inverse_test[i], A_tilde_pl: A_tilde_test[i],
                              X_pl: X_test[i], Y_pl: Y_test[i], node_size_pl: nodes_size_list_test[i], is_train: 0}
-                pre_y_value = sess.run(pre_y, feed_dict=feed_dict)
+                pre_y_value, pos_score_value = sess.run([pre_y, pos_score], feed_dict=feed_dict)
                 prediction.append(np.argmax(pre_y_value, 1))
+                scores.append(pos_score_value[0][1])
                 if np.argmax(pre_y_value, 1) == Y_test[i]:
                     test_acc += 1
             test_acc = test_acc / test_data_size
@@ -231,4 +233,4 @@ def train(X_train, D_inverse_train, A_tilde_train, Y_train, nodes_size_list_trai
             # saver.save(sess, os.path.join(MODEL_SAVE_PATH, data_name, MODEL_SAVE_NAME), global_step)
         end_t = time.time()
         print("time consumption: ", end_t - start_t)
-    return test_acc, prediction
+    return test_acc, prediction, scores

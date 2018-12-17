@@ -26,12 +26,12 @@ def gnn():
     D_inverse_train, D_inverse_test, A_tilde_train, A_tilde_test, X_train, X_test, Y_train, Y_test, \
     nodes_size_list_train, nodes_size_list_test = split_train_test(D_inverse, A_tilde, X, Y, nodes_size_list)
 
-    test_acc, prediction = train(X_train, D_inverse_train, A_tilde_train, Y_train, nodes_size_list_train,
+    test_acc, prediction, pos_scores = train(X_train, D_inverse_train, A_tilde_train, Y_train, nodes_size_list_train,
                      X_test, D_inverse_test, A_tilde_test, Y_test, nodes_size_list_test,
                      args.top_k, initial_feature_dimension,
                      learning_rate[args.data] if args.learning_rate is None else args.learning_rate,
                      args.epoch, args.data)
-    return test_acc, np.squeeze(prediction), np.squeeze(Y_test)
+    return test_acc, np.squeeze(prediction), np.squeeze(pos_scores), np.squeeze(Y_test)
 
 
 def main():
