@@ -5,8 +5,7 @@ import numpy as np
 data_set_name = ["mutag", "proteins", "cni1", "dd"]
 performance = {}
 for name_file in data_set_name:
-    main.args.data = name_file
-    main.epoch = 100
+    main.parse_args(name_file)
     if name_file not in performance.keys():
         performance[name_file] = []
     for i in range(10):

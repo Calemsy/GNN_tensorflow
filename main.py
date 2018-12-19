@@ -4,15 +4,17 @@ from gnn import create_input, split_train_test, train
 import numpy as np
 
 
-parser = argparse.ArgumentParser(description="GNN(graph neural network)-tensorflow")
-parser.add_argument("-d", "--data", type=str, help="name of data", default="mutag")
-parser.add_argument("-e", "--epoch", type=int, default=100, help="pass through all training set call a EPOCH")
-parser.add_argument("-r", "--learning_rate", type=float, help="learning rate")
-parser.add_argument("-k", "--top_k", type=int, default=60, help="for sort pooling layer to cut nodes")
-args = parser.parse_args()
+def parse_args(data_name="mutag"):
+    parser = argparse.ArgumentParser(description="GNN(graph neural network)-tensorflow")
+    parser.add_argument("-d", "--data", type=str, help="name of data", default=data_name)
+    parser.add_argument("-e", "--epoch", type=int, default=100, help="pass through all training set call a EPOCH")
+    parser.add_argument("-r", "--learning_rate", type=float, help="learning rate")
+    parser.add_argument("-k", "--top_k", type=int, default=60, help="for sort pooling layer to cut nodes")
+    args = parser.parse_args()
+    return args
 
 
-def gnn():
+def gnn(args):
     with open("./data/" + args.data + ".txt", "rb") as f_in:
         data = pickle.load(f_in)
     print("data information:")
@@ -35,7 +37,8 @@ def gnn():
 
 
 def main():
-    gnn()
+    args = parse_args()
+    gnn(args)
 
 if __name__ == "__main__":
     main()
