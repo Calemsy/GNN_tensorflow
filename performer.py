@@ -10,7 +10,8 @@ for name_file in data_set_name:
         performance[name_file] = []
     for i in range(10):
         print("-" * 30, name_file, "test: ", i)
-        performance[name_file].append(main.gnn(args))
+        test_acc, _, _, _ = main.gnn(args)
+        performance[name_file].append(test_acc)
 print()
 for key, value in performance.items():
     with open(os.path.join("logs", key+".txt"), "a") as f:
