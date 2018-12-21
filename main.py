@@ -18,6 +18,7 @@ def gnn(args):
     with open("./data/" + args.data + ".txt", "rb") as f_in:
         data = pickle.load(f_in)
     print("data information:")
+    print("data name: ", args.data)
     print("graphs: ", len(data["graphs"]))
     print("max nodes: %d \nmin nodes: %d \naverage node %.2f" %
           (np.max(data["nodes_size_list"]), np.min(data["nodes_size_list"]), np.average(data["nodes_size_list"])))
